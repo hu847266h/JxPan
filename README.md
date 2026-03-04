@@ -25,44 +25,61 @@
 
 ---
 
+
 ## 🚀 支持平台
 
 | 平台 | 域名 | 状态 |
-| :--- | :--- | :---: |
-| **小飞机网盘** | feijipan.com | ✅ 已支持 |
-| **蓝奏云优享版** | ilanzou.com | ✅ 已支持 |
-| **蓝奏云** | lanzou.com | ✅ 已支持 |
+|------|------|------|
+| 阿里云盘 | alipan.com / aliyundrive.com | ✅ 已支持 |
+| 夸克网盘 | pan.quark.cn | ✅ 已支持 |
+| UC网盘 | drive.uc.cn / fast.uc.cn | ✅ 已支持 |
+| 小飞机网盘 | feijipan.com | ✅ 已支持 |
+| 蓝奏云优享版 | ilanzou.com | ✅ 已支持 |
+| 蓝奏云 | lanzou*.com | ✅ 已支持 |
 
-> 🔜 **更多平台**：正在适配中，欢迎提交 Issue 建议新增平台
-
+> **注意**：阿里云盘、夸克网盘、UC网盘需要配置cookie才能正常解析
 ---
 
 ## 💡 快速部署
 
 ### ⚙️ Workers 部署
 
-<details>
-<summary><code><strong>「 Workers 部署文字教程 」</strong></code></summary>
+#### 1. 创建 Worker
 
-1. **创建 Worker**：
-   - 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)，进入 Workers & Pages
-   - 点击 **"创建服务"**，输入服务名称（如 `jxpan`），点击 **"创建服务"**
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)，进入 **Workers & Pages**
+2. 点击 "创建服务"，输入服务名称（如 `jxpan`），点击 "创建服务"
 
-2. **上传代码**：
-   - 进入 Worker 编辑页面，点击 **"快速编辑"**
-   - 将 [`_worker.js`](https://github.com/ByLsPro/JxPan/blob/main/_worker.js) 的完整代码粘贴到编辑器中
-   - 点击 **"保存并部署"**
+#### 2. 上传代码
 
-3. **绑定自定义域**（推荐）：
-   - 在 **"触发器"** 选项卡点击 **"添加自定义域"**
-   - 输入您的域名（如 `pan.yourdomain.com`），点击 **"添加自定义域"**
-   - 按提示完成 DNS 解析，等待证书生效
+1. 进入 Worker 编辑页面，点击 "快速编辑"
+2. 将 `解析.js` 的完整代码粘贴到编辑器中
+3. 点击 "保存并部署"
 
-4. **访问测试**：
-   - 访问 `https://your-domain.com/` 查看使用说明
-   - 或访问 `https://your-domain.com/?url=分享链接` 进行解析测试
+#### 3. 配置环境变量（可选）
 
-</details>
+对于需要 Cookie 认证的网盘，需要配置以下环境变量：
+
+| 变量名 | 说明 | 适用平台 |
+|--------|------|----------|
+| `ALIYUN_COOKIE` | 阿里云盘的 Authorization Token | 阿里云盘 |
+| `QK_COOKIE` | 夸克网盘的 Cookie | 夸克网盘 |
+| `UC_COOKIE` | UC网盘的 Cookie | UC网盘 |
+
+配置方法：
+1. 在 Worker 页面点击 "设置" → "变量"
+2. 点击 "添加变量"，输入变量名和值
+3. 点击 "保存"
+
+#### 4. 绑定自定义域（推荐）
+
+1. 在 "触发器" 选项卡点击 "添加自定义域"
+2. 输入您的域名（如 `pan.yourdomain.com`），点击 "添加自定义域"
+3. 按提示完成 DNS 解析，等待证书生效
+
+#### 5. 访问测试
+
+- 访问 `https://your-domain.com/` 查看使用说明
+- 访问 `https://your-domain.com/?url=分享链接` 进行解析测试
 
 ---
 
@@ -72,53 +89,233 @@
 
 #### 1. 解析接口（JSON 返回）
 
-### 接口说明
-
-#### 1. 302 自动跳转下载
-
-**通用接口**
 ```
-GET your-domain.dev/?url={分享链接}&pwd={密码}
+GET /?url={分享链接}&pwd={密码}&type=json
 ```
 
-#### 2. 获取直链 JSON
+**参数说明：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| url | string | ✅ | 网盘分享链接 |
+| pwd | string | ❌ | 分享密码（如有） |
+| type | string | ❌ | 返回类型 |
+
+**返回示例：**
+
+```json
+{
+  "code": 200,
+  "msg": "解析成功",
+  "success": true,
+  "shareKey": "uc:xxxxxxxx",
+  "cookie_status": {
+    "valid": true,
+    "remaining_time": "1小时30分",
+    "remaining_seconds": 5400
+  },
+  "data": {
+    "file_id": "xxxxxxxx",
+    "file_name": "example.zip",
+    "file_size": "100.00 MB",
+    "download_url": "https://..."
+  }
+}
+```
+
+#### 2. 302 自动跳转下载
 
 ```
-GET your-domain.dev/?url={分享链接}&pwd={密码}&type=json
+GET /?url={分享链接}&pwd={密码}
 ```
 
+默认情况下，对于支持直接下载的网盘会使用 302 重定向到下载地址。
 
-#### 3. 302重定向下载
+#### 3. 代理下载（适用于阿里云盘、夸克网盘、UC网盘）
 
 ```
-GET your-domain.dev/?url={分享链接}&pwd={密码}&type=down
+GET /?url={分享链接}&pwd={密码}&type=down
 ```
 
-### _worker.js配置说明
+**说明：**
+- 对于阿里云盘、夸克网盘、UC网盘等需要特殊请求头的网盘
+- 代理下载会携带必要的请求头（如：Cookie、Referer、X-CToken 等）
 
-- `auto-switch` 自动切换平台UA
-- `{cache}` 解析缓存，可将已解析的URL储存到KV中
-- `redirect-url` 是否默认使用302重定向下载
+---
 
-### 特殊说明
+## ⚙️ 配置说明
 
-- 目前缓存功能还未实现储存KV空间，请勿开启cache功能
-- 目前该项目仅支持单个文件的解析，暂未实现文件夹解析功能
+### 环境变量配置
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `ALIYUN_ENABLED` | true | 是否启用阿里云盘解析 |
+| `ALIYUN_COOKIE` | - | 阿里云盘 Authorization Token |
+| `ALIYUN_USER_AGENT` | - | 阿里云盘自定义 UA |
+| `QK_ENABLED` | true | 是否启用夸克网盘解析 |
+| `QK_COOKIE` | - | 夸克网盘 Cookie |
+| `QK_USER_AGENT` | - | 夸克网盘自定义 UA |
+| `UC_ENABLED` | true | 是否启用 UC 网盘解析 |
+| `UC_COOKIE` | - | UC 网盘 Cookie |
+| `UC_USER_AGENT` | - | UC 网盘自定义 UA |
+| `CACHE` | false | 是否启用缓存（暂未实现） |
+| `CACHE_EXPIRED` | 2000 | 缓存过期时间（秒） |
+| `AUTO_SWITCH` | true | 自动切换平台 UA |
+| `MODE` | pc | 解析模式 |
+| `REDIRECT_URL` | false | 是否默认使用 302 重定向 |
+
+### Cookie 获取方法
+
+#### 阿里云盘
+
+1. 访问 https://www.alipan.com 并登录
+2. 按 F12 打开开发者工具 → Network
+3. 刷新页面，找到任意 API 请求
+4. 复制请求头中的 `Authorization` 字段值（包含 Bearer）
+
+#### 夸克网盘
+
+1. 访问 https://pan.quark.cn 并登录
+2. 按 F12 打开开发者工具 → Network
+3. 刷新页面，找到任意 API 请求
+4. 复制请求头中的 `Cookie` 字段值
+
+#### UC网盘
+
+1. 访问 https://drive.uc.cn 并登录
+2. 访问任意分享链接
+3. 按 F12 打开开发者工具 → Network
+4. 找到 `share/sharepage/token` 或 `transfer_share/detail` 请求
+5. 复制请求头中的完整 `Cookie` 字符串
+
+**UC网盘 Cookie 必须包含以下字段：**
+- `__pus`
+- `__puus`
+- `UDRIVE_TRANSFER_SESS`
+- `ctoken`（必需，用于 X-CToken 请求头）
+- `b-user-id`
+
+---
+
+## 📝 使用示例
+
+### 阿里云盘
+
+```bash
+# JSON 返回
+curl "https://your-domain.com/?url=https://www.alipan.com/s/xxxxxx&type=json"
+
+# 代理下载
+curl "https://your-domain.com/?url=https://www.alipan.com/s/xxxxxx&type=down"
+```
+
+### 夸克网盘
+
+```bash
+# JSON 返回
+curl "https://your-domain.com/?url=https://pan.quark.cn/s/xxxxxx&type=json"
+
+# 代理下载
+curl "https://your-domain.com/?url=https://pan.quark.cn/s/xxxxxx&type=down"
+```
+
+### UC网盘
+
+```bash
+# JSON 返回
+curl "https://your-domain.com/?url=https://drive.uc.cn/s/xxxxxx&type=json"
+
+# 代理下载
+curl "https://your-domain.com/?url=https://drive.uc.cn/s/xxxxxx&type=down"
+```
+
+### 蓝奏云
+
+```bash
+# 直接下载（支持 302 重定向）
+curl "https://your-domain.com/?url=https://lanzoux.com/xxxxxx"
+```
+
+---
+
+## 🔧 技术架构
+
+```
+┌─────────────────┐
+│   Cloudflare    │
+│    Workers      │
+│  (Edge Runtime) │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+┌───▼───┐  ┌──▼────┐
+│ 网盘  │  │ 网盘  │
+│ API   │  │ OSS   │
+└───────┘  └───────┘
+```
+
+### 核心模块
+
+- **CookieManager** - Cookie 缓存管理，支持 2 小时有效期
+- **AliyunPanParser** - 阿里云盘解析器
+- **QuarkParser** - 夸克网盘解析器
+- **UCParser** - UC网盘解析器
+- **FeijipanParser** - 小飞机网盘解析器
+- **IlanzouParser** - 蓝奏云优享版解析器
+- **LanzouParser** - 蓝奏云解析器
 
 ---
 
 ## ⚠️ 免责声明
 
-1. **本项目仅供学习研究使用**，旨在探索网盘分享链接的解析原理及边缘计算技术应用。
-2. 使用本项目获取的下载链接，请严格遵守各网盘平台的服务条款及相关法律法规。
-3. **严禁**将本项目用于以下行为：
-   - 大规模自动化爬取、转存或分发网盘资源
-   - 破解、绕过网盘平台的付费功能或访问限制
-   - 传播盗版、侵权或违法违规内容
-4. 作者 **ByLsPro** 不对因使用本项目导致的任何法律纠纷、账号封禁或数据损失承担责任。
-5. 如因网盘平台政策调整或反爬升级导致功能失效，本项目可能随时停止维护，敬请谅解。
-6. 下载的文件请在 24 小时内删除，不得用于商业用途或二次传播。
+本项目仅供学习研究使用，旨在探索网盘分享链接的解析原理及边缘计算技术应用。
+
+使用本项目获取的下载链接，请严格遵守各网盘平台的服务条款及相关法律法规。
+
+**严禁将本项目用于以下行为：**
+
+- 大规模自动化爬取、转存或分发网盘资源
+- 破解、绕过网盘平台的付费功能或访问限制
+- 传播盗版、侵权或违法违规内容
+
+作者不对因使用本项目导致的任何法律纠纷、账号封禁或数据损失承担责任。
+
+如因网盘平台政策调整或反爬升级导致功能失效，本项目可能随时停止维护，敬请谅解。
+
+下载的文件请在 24 小时内删除，不得用于商业用途或二次传播。
 
 ---
 
+## 📄 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。
+
 ---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+### 提交新平台支持
+
+如果你想添加新的网盘支持，请确保：
+
+1. 实现对应的 Parser 类
+2. 遵循现有的代码风格
+3. 提供完整的测试用例
+4. 更新 README.md 文档
+
+---
+
+## 📞 联系方式
+
+如有问题或建议，欢迎通过以下方式联系：
+
+- GitHub Issues: [提交问题](https://github.com/ByLsPro/JxPan/issues)
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/ByLsPro">ByLsPro</a>
+</p>
