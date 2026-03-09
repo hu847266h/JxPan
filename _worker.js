@@ -1,5 +1,5 @@
 // Cloudflare Workers - 网盘解析脚本
-// 支持: 阿里云盘(alipan.com) | 小飞机网盘(feijipan.com) | 蓝奏云优享版(ilanzou.com) | 蓝奏云(lanzou*.com) | 夸克网盘(quark.cn) | UC网盘(drive.uc.cn) | 移动云盘(yun.139.com)
+// 支持: 阿里云盘(alipan.com) | 小飞机网盘(feijipan.com) | 蓝奏云优享版(ilanzou.com) | 蓝奏云(lanzou*.com) | 夸克网盘(quark.cn) | UC网盘(drive.uc.cn)  | 移动云盘(yun.139.com)
 
 
 const cookieCache = {
@@ -9,8 +9,8 @@ const cookieCache = {
     mcloud: { value: null, timestamp: 0 }
 };
 
-// Cookie 有效期：2小时
-const COOKIE_MAX_AGE = 2 * 60 * 60 * 1000;
+// Cookie 有效期：24小时
+const COOKIE_MAX_AGE = 24 * 60 * 60 * 1000;
 
 // ============================== Cookie 管理类 ==============================
 class CookieManager {
@@ -41,7 +41,7 @@ class CookieManager {
                 value: this.envValue,
                 timestamp: now
             };
-            console.log(`[${this.type}] Cookie 已更新，新的2小时有效期开始计时`);
+            console.log(`[${this.type}] Cookie 已更新，新的24小时有效期开始计时`);
             return {
                 value: this.envValue,
                 isCached: false,
@@ -81,7 +81,7 @@ class CookieManager {
                 configured: true,
                 valid: true,
                 cached: false,
-                message: '已配置，尚未使用（将在首次请求时激活2小时有效期）'
+                message: '已配置，尚未使用（将在首次请求时激活24小时有效期）'
             };
         }
         
@@ -106,7 +106,7 @@ class CookieManager {
                 cached: true,
                 expired: true,
                 age: Math.floor(age / 1000),
-                message: 'Cookie 已过期（超过2小时），请重新配置'
+                message: 'Cookie 已过期（超过24小时），请重新配置'
             };
         }
     }
@@ -452,7 +452,7 @@ function formatDuration(ms) {
 class AliyunPanParser {
     constructor(config) {
         this.config = config;
-        this.authorization = config.aliyun.authorization;
+        this.cookieManager = new CookieManager('aliyun', config.aliyun.authorization);
         this.userAgent = config.aliyun.userAgent;
         this.apiBase = 'https://api.aliyundrive.com';
         this.userDriveId = null;
@@ -466,7 +466,9 @@ class AliyunPanParser {
                 return { code: 503, msg: '阿里云盘解析已禁用', success: false, data: null };
             }
 
-            if (!this.authorization) {
+            const cookieStatus = this.cookieManager.getValidCookie();
+            
+            if (!cookieStatus.value) {
                 return { 
                     code: 401, 
                     msg: '阿里云盘 Authorization Token 未配置 (ALIYUN_AUTHORIZATION)', 
@@ -475,7 +477,19 @@ class AliyunPanParser {
                 };
             }
 
-            this.authToken = this.authorization;
+            if (cookieStatus.expired) {
+                return {
+                    code: 401,
+                    msg: '阿里云盘 Authorization 已过期（超过2小时），请重新配置 ALIYUN_AUTHORIZATION',
+                    success: false,
+                    data: {
+                        expired: true,
+                        hint: 'Authorization 有效期为2小时，从配置完成时开始计时'
+                    }
+                };
+            }
+
+            this.authToken = cookieStatus.value;
             if (!this.authToken.startsWith('Bearer ')) {
                 this.authToken = 'Bearer ' + this.authToken;
             }
@@ -530,6 +544,7 @@ class AliyunPanParser {
 
             const driveId = await this.getDriveId();
             if (!driveId) {
+                this.cookieManager.invalidate();
                 return { 
                     code: 401, 
                     msg: '获取用户信息失败，Authorization 可能已过期，请重新配置 ALIYUN_AUTHORIZATION', 
@@ -573,11 +588,18 @@ class AliyunPanParser {
                 files: results
             };
 
+            const remainingTime = cookieStatus.remainingTime;
+            
             return {
                 code: 200,
                 msg: '解析成功',
                 success: true,
                 shareKey: 'al:' + shareId,
+                cookie_status: {
+                    valid: true,
+                    remaining_time: formatDuration(remainingTime),
+                    remaining_seconds: Math.floor(remainingTime / 1000)
+                },
                 data: responseData
             };
 
@@ -2617,12 +2639,13 @@ class MobileCloudParser {
     constructor(config) {
         this.config = config;
         const mcloudConfig = config.mcloud || {};
-        this.authorization = mcloudConfig.authorization && mcloudConfig.authorization.trim() ? mcloudConfig.authorization : null;
+        this.cookieManager = new CookieManager('mcloud', mcloudConfig.authorization);
         this.userAgent = mcloudConfig.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0';
         this.clientId = '10701';
         this.version = '7.17.2';
         this.deviceId = this.generateRandomString(32);
-        this.account = this.extractAccountFromAuth(this.authorization);
+        this.account = null;
+        this.authorization = null;
         this.mcloudSkey = null;
         this.baseUrl = 'https://yun.139.com/orchestration/auth-rebuild';
         this.shareApi = 'https://share-kd-njs.yun.139.com/yun-share/richlifeApp/devapp/IOutLink/getOutLinkInfoV6';
@@ -2668,7 +2691,13 @@ class MobileCloudParser {
 
     async parse(shareUrl, pwd = '') {
         try {
-            if (!this.authorization) {
+            if (!this.config.mcloud.enabled) {
+                return { code: 503, msg: '移动云盘解析已禁用', success: false, data: null };
+            }
+
+            const cookieStatus = this.cookieManager.getValidCookie();
+            
+            if (!cookieStatus.value) {
                 return {
                     code: 401,
                     msg: '移动云盘 Authorization 未配置，请检查 MCLOUD_AUTHORIZATION 环境变量',
@@ -2676,6 +2705,21 @@ class MobileCloudParser {
                     data: null
                 };
             }
+
+            if (cookieStatus.expired) {
+                return {
+                    code: 401,
+                    msg: '移动云盘 Authorization 已过期（超过24小时），请重新配置 MCLOUD_AUTHORIZATION',
+                    success: false,
+                    data: {
+                        expired: true,
+                        hint: 'Authorization 有效期为2小时，从配置完成时开始计时'
+                    }
+                };
+            }
+
+            this.authorization = cookieStatus.value;
+            this.account = this.extractAccountFromAuth(this.authorization);
 
             // 提取分享信息
             const shareInfo = this.extractShareInfo(shareUrl);
@@ -2721,10 +2765,17 @@ class MobileCloudParser {
                 files: results
             };
 
+            const remainingTime = cookieStatus.remainingTime;
+            
             return {
                 code: 200,
                 msg: '解析成功',
                 success: true,
+                cookie_status: {
+                    valid: true,
+                    remaining_time: formatDuration(remainingTime),
+                    remaining_seconds: Math.floor(remainingTime / 1000)
+                },
                 data: responseData
             };
 
