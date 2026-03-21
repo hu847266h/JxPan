@@ -461,7 +461,6 @@ class AliyunPanParser {
 
     async parse(shareUrl, password = '') {
         try {
-            // 检查是否启用
             if (!this.config.aliyun.enabled) {
                 return { code: 503, msg: '阿里云盘解析已禁用', success: false, data: null };
             }
@@ -494,7 +493,6 @@ class AliyunPanParser {
                 this.authToken = 'Bearer ' + this.authToken;
             }
 
-            // 初始化请求头
             this.baseHeaders = {
                 'User-Agent': this.userAgent,
                 'Accept': 'application/json, text/plain, */*',
@@ -506,7 +504,6 @@ class AliyunPanParser {
                 'Authorization': this.authToken
             };
 
-            // 提取分享信息
             const { shareId, extractedPwd } = this.extractShareInfo(shareUrl);
             if (!shareId) {
                 return { code: 400, msg: '无法解析阿里云盘分享链接', success: false, data: null };
@@ -519,7 +516,6 @@ class AliyunPanParser {
                 return { code: 404, msg: '获取分享信息失败，链接可能已失效', success: false, data: null };
             }
 
-            // 获取share_token
             const shareToken = await this.getShareToken(shareId, pwd);
             if (!shareToken) {
                 return { 
@@ -530,7 +526,6 @@ class AliyunPanParser {
                 };
             }
 
-            // 获取文件列表
             const files = await this.listShareFiles(shareId, shareToken);
             if (!files || files.length === 0) {
                 return { code: 404, msg: '分享中没有文件，可能是Authorization失效或分享链接失效，请检查Authorization是否失效', success: false, data: null };
@@ -558,13 +553,11 @@ class AliyunPanParser {
                 const fileName = fileInfo.name || '未知文件';
                 const fileId = fileInfo.file_id;
                 
-                // 保存到网盘
                 const newFileId = await this.saveToMyDrive(shareId, fileId, shareToken);
                 if (!newFileId) {
                     continue;
                 }
                 
-                // 获取下载链接
                 const downloadUrl = await this.getDownloadUrl(driveId, newFileId);
                 if (downloadUrl) {
                     results.push({
@@ -748,7 +741,6 @@ class AliyunPanParser {
             if (response.status === 200) {
                 const result = await response.json();
                 
-                // 尝试不同的drive_id字段
                 for (const field of ['default_drive_id', 'drive_id', 'backup_drive_id']) {
                     if (result[field]) {
                         this.userDriveId = result[field];
@@ -760,7 +752,6 @@ class AliyunPanParser {
                     this.userDriveId = result.user_id;
                 }
             } else if (response.status === 401) {
-                // Token 无效
                 this.cookieManager.invalidate();
             }
         } catch (e) {
@@ -864,7 +855,7 @@ class QuarkParser {
         this.cookieManager = new CookieManager('quark', config.quark.cookie);
         this.userAgent = config.quark.userAgent;
         this.baseHeaders = null;
-        this.validCookie = null; // 验证cookie
+        this.validCookie = null;
     }
 
     async parse(shareUrl, passcode = '') {
@@ -873,7 +864,6 @@ class QuarkParser {
                 return { code: 503, msg: '夸克网盘解析已禁用', success: false, data: null };
             }
 
-            // 获取Cookie
             const cookieStatus = this.cookieManager.getValidCookie();
             
             if (!cookieStatus.value) {
@@ -899,7 +889,6 @@ class QuarkParser {
 
             this.validCookie = cookieStatus.value;
 
-            // 初始化请求头
             this.baseHeaders = {
                 'User-Agent': this.userAgent,
                 'Content-Type': 'application/json',
@@ -909,13 +898,11 @@ class QuarkParser {
                 'Accept': 'application/json, text/plain, */*'
             };
 
-            // 提取分享ID
             const pwdId = this.extractPwdId(shareUrl);
             if (!pwdId) {
                 return { code: 400, msg: '无效的夸克网盘分享链接', success: false, data: null };
             }
 
-            // 获取分享 token
             const stoken = await this.getShareToken(pwdId, passcode);
             if (!stoken) {
                 return { 
@@ -926,7 +913,6 @@ class QuarkParser {
                 };
             }
 
-            // 获取文件列表
             const fileList = await this.getShareDetail(pwdId, stoken);
             if (!fileList || fileList.length === 0) {
                 return { code: 404, msg: '分享中没有文件，可能是Cookie失效或分享链接失效，请检查Cookie是否失效', success: false, data: null };
@@ -938,17 +924,13 @@ class QuarkParser {
                 return { code: 404, msg: '没有可下载的文件（可能都是文件夹）', success: false, data: null };
             }
 
-            // 提取文件ID
             const fids = files.map(f => f.fid);
-
-            // 批量获取下载链接
             const downloadData = await this.getDownloadLinks(fids);
             
             if (!downloadData || downloadData.length === 0) {
                 return { code: 502, msg: '获取下载链接失败', success: false, data: null };
             }
 
-            // 构建响应数据
             const fileMap = {};
             files.forEach(f => {
                 fileMap[f.fid] = f;
@@ -1128,7 +1110,6 @@ class UCParser {
                 return { code: 503, msg: 'UC网盘解析已禁用', success: false, data: null };
             }
 
-            // 获取Cookie
             const cookieStatus = this.cookieManager.getValidCookie();
             
             if (!cookieStatus.value) {
@@ -1164,7 +1145,6 @@ class UCParser {
                 };
             }
 
-            // 初始化请求头
             this.baseHeaders = {
                 'User-Agent': this.userAgent,
                 'Accept': 'application/json, text/plain, */*',
@@ -1180,13 +1160,11 @@ class UCParser {
                 'X-CToken': cookies.ctoken
             };
 
-            // 提取分享key
             const shareKey = this.extractShareKey(shareUrl);
             if (!shareKey) {
                 return { code: 400, msg: '无效的UC网盘分享链接', success: false, data: null };
             }
 
-            // 获取 stoken
             const stoken = await this.getShareToken(shareKey, passcode, cookies);
             if (!stoken) {
                 return { 
@@ -1197,13 +1175,11 @@ class UCParser {
                 };
             }
 
-            // 获取文件详情
             const fileInfo = await this.getShareDetail(shareKey, passcode, stoken, cookies);
             if (!fileInfo) {
                 return { code: 404, msg: '分享中没有文件，可能是Cookie失效或分享链接失效', success: false, data: null };
             }
 
-            // 获取下载链接
             const downloadUrl = await this.getDownloadUrl(fileInfo, shareKey, stoken, cookies);
             
             if (!downloadUrl) {
@@ -1554,7 +1530,7 @@ class IlanzouParser {
         try {
             const shareId = this.extractShareId(url);
             if (!shareId) {
-                return { code: 400, msg: '无效的分享链接', data: null };
+                return { code: 400, msg: '无效的分享链接', success: false, data: null };
             }
 
             const uuid = generateUUID();
@@ -1565,13 +1541,13 @@ class IlanzouParser {
             const fileInfo = await this.getFileInfo(apiUrl, uuid, pwd);
 
             if (fileInfo.error) {
-                return { code: 400, msg: fileInfo.msg, data: null };
+                return { code: 400, msg: fileInfo.msg, success: false, data: null };
             }
 
             if (fileInfo.need_password) {
                 return pwd ? 
-                    { code: 400, msg: '密码错误', data: null } : 
-                    { code: 201, msg: '请输入密码', data: null };
+                    { code: 400, msg: '密码错误', success: false, data: null } : 
+                    { code: 201, msg: '请输入密码', success: false, data: null };
             }
 
             const fileId = fileInfo.fileIds || fileInfo.fileId || fileInfo.id || '';
@@ -1579,22 +1555,23 @@ class IlanzouParser {
             const fileSize = fileInfo.fileSize || fileInfo.size || '';
 
             if (!fileId) {
-                return { code: 400, msg: '文件信息获取失败', data: null };
+                return { code: 400, msg: '文件信息获取失败', success: false, data: null };
             }
 
             if (!fileName && !fileSize && !pwd) {
-                return { code: 201, msg: '请输入密码', data: null };
+                return { code: 201, msg: '请输入密码', success: false, data: null };
             }
 
             const downloadUrl = await this.getDownloadUrl(fileInfo, uuid);
 
             if (!downloadUrl) {
-                return { code: 400, msg: '获取下载链接失败', data: null };
+                return { code: 400, msg: '获取下载链接失败', success: false, data: null };
             }
 
             return {
                 code: 200,
                 msg: '解析成功',
+                success: true,
                 shareKey: 'iz:' + shareId,
                 data: {
                     file_id: fileId,
@@ -1605,7 +1582,7 @@ class IlanzouParser {
             };
 
         } catch (e) {
-            return { code: 500, msg: '解析失败: ' + e.message, data: null };
+            return { code: 500, msg: '解析失败: ' + e.message, success: false, data: null };
         }
     }
 
@@ -2465,25 +2442,19 @@ class LanzouParser {
 
 // ============================== 响应处理工具 ==============================
 
-/**
- * 携带请求头代理下载
- */
 async function proxyDownload(downloadUrl, headers, filename) {
     try {
-        // 对于UC网盘，我们需要手动处理重定向，确保请求头被正确传递
         let currentUrl = downloadUrl;
         let response;
         
-        // 最多跟随3次重定向
         for (let i = 0; i < 3; i++) {
             response = await fetch(currentUrl, {
                 method: 'GET',
                 headers: headers,
-                redirect: 'manual' // 手动处理重定向
+                redirect: 'manual'
             });
             
             if (response.status >= 300 && response.status < 400) {
-                // 处理重定向
                 const location = response.headers.get('Location');
                 if (location) {
                     currentUrl = location;
@@ -2501,18 +2472,14 @@ async function proxyDownload(downloadUrl, headers, filename) {
             });
         }
 
-        // 获取原始响应的 headers
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
         const contentLength = response.headers.get('content-length');
-        
-        // 构建新的响应 headers
         const responseHeaders = new Headers({
             'Content-Type': contentType,
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length',
         });
 
-        // 设置文件名（如果提供了）
         if (filename) {
             const encodedFilename = encodeURIComponent(filename);
             responseHeaders.set('Content-Disposition', `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`);
@@ -2522,7 +2489,6 @@ async function proxyDownload(downloadUrl, headers, filename) {
             responseHeaders.set('Content-Length', contentLength);
         }
 
-        // 流式返回文件内容
         return new Response(response.body, {
             status: 200,
             headers: responseHeaders
@@ -2536,9 +2502,7 @@ async function proxyDownload(downloadUrl, headers, filename) {
     }
 }
 
-/**
- * 获取阿里云盘下载所需的请求头
- */
+
 function getAliyunDownloadHeaders(config, authorization) {
     const headers = {
         'Referer': 'https://www.alipan.com/',
@@ -2549,7 +2513,6 @@ function getAliyunDownloadHeaders(config, authorization) {
         'Connection': 'keep-alive',
     };
     
-    // 添加Authorization（如果存在）
     if (authorization) {
         headers['Authorization'] = authorization.startsWith('Bearer ') ? authorization : 'Bearer ' + authorization;
     }
@@ -2557,9 +2520,6 @@ function getAliyunDownloadHeaders(config, authorization) {
     return headers;
 }
 
-/**
- * 获取夸克网盘下载所需的请求头
- */
 function getQuarkDownloadHeaders(config, cookie) {
     return {
         'User-Agent': config.quark.userAgent,
@@ -2573,11 +2533,8 @@ function getQuarkDownloadHeaders(config, cookie) {
     };
 }
 
-/**
- * 获取UC网盘下载所需的请求头
- */
+
 function getUCDownloadHeaders(config, cookie) {
-    // 解析Cookie获取ctoken
     const cookies = parseCookieString(cookie);
     const headers = {
         'User-Agent': config.uc.userAgent,
@@ -2594,12 +2551,10 @@ function getUCDownloadHeaders(config, cookie) {
         'Upgrade-Insecure-Requests': '1',
     };
     
-    // 添加X-CToken（如果存在）
     if (cookies.ctoken) {
         headers['X-CToken'] = cookies.ctoken;
     }
     
-    // 添加Cookie（如果存在）
     if (cookie) {
         headers['Cookie'] = cookie;
     }
@@ -2607,23 +2562,36 @@ function getUCDownloadHeaders(config, cookie) {
     return headers;
 }
 
-/**
- * 解析Cookie字符串
- */
+function getMcloudDownloadHeaders(config, authorization) {
+    const headers = {
+        'User-Agent': config.mcloud.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0',
+        'Accept': '*/*',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Referer': 'https://yun.139.com/',
+        'Origin': 'https://yun.139.com',
+    };
+    
+    if (authorization) {
+        headers['Authorization'] = authorization;
+    }
+    
+    return headers;
+}
+
+
 function parseCookieString(cookieString) {
     const cookies = {};
     if (!cookieString) return cookies;
-    
-    // 尝试解析JSON格式
+  
     if (cookieString.trim().startsWith('{')) {
         try {
             return JSON.parse(cookieString);
         } catch (e) {
-            // 继续尝试其他格式
         }
     }
     
-    // 解析标准Cookie格式
     cookieString.split(';').forEach(item => {
         const [key, value] = item.trim().split('=');
         if (key && value !== undefined) {
@@ -2641,18 +2609,16 @@ class MobileCloudParser {
         const mcloudConfig = config.mcloud || {};
         this.cookieManager = new CookieManager('mcloud', mcloudConfig.authorization);
         this.userAgent = mcloudConfig.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0';
-        this.clientId = '10701';
-        this.version = '7.17.2';
-        this.deviceId = this.generateRandomString(32);
+        this.clientId = '10702';
+        this.version = '7.13.3';
+        this.deviceId = '522b6107d153211263b13afa2b041bf5';
         this.account = null;
         this.authorization = null;
         this.mcloudSkey = null;
-        this.baseUrl = 'https://yun.139.com/orchestration/auth-rebuild';
-        this.shareApi = 'https://share-kd-njs.yun.139.com/yun-share/richlifeApp/devapp/IOutLink/getOutLinkInfoV6';
-        // 用于加密请求体的 AES 密钥
         this.aesKey = 'PVGDwmcvfs1uV3d1';
-        // 用于登录的 AES 密钥
         this.loginAesKey = 'nYUIM27FoBVCosa5';
+        this.getOutLinkInfoEndpoint = 'https://share-kd-njs.yun.139.com/yun-share/richlifeApp/devapp/IOutLink/getOutLinkInfoV6';
+        this.dlFromOutLinkEndpoint = 'https://share-kd-njs.yun.139.com/yun-share/richlifeApp/devapp/IOutLink/dlFromOutLinkV3';
     }
 
     extractAccountFromAuth(authorization) {
@@ -2660,20 +2626,28 @@ class MobileCloudParser {
             return null;
         }
         
-        // 检查 authorization 是否以 "Basic " 开头
-        if (!authorization.startsWith('Basic ')) {
-            return authorization;
-        }
-        
         try {
-            // 解码 Base64
-            const authStr = authorization.substring(6);
-            const decoded = atob(authStr);
-            // 提取账号部分（通常是手机号）
-            if (decoded.includes(':')) {
-                return decoded.split(':', 1)[0];
+            let authStr = authorization.trim();
+            if (authStr.toLowerCase().startsWith('basic ')) {
+                authStr = authStr.substring(6);
             }
-            return decoded;
+            
+            const decoded = atob(authStr);
+            console.log(`[*] Authorization解码后: ${decoded}`);
+            
+            const parts = decoded.split('|');
+            if (parts.length >= 1) {
+                const firstPart = parts[0];
+                const subParts = firstPart.split(':');
+                if (subParts.length >= 2) {
+                    const account = subParts[1];
+                    console.log(`[*] 从Authorization中提取到账号: ${account}`);
+                    return account;
+                }
+            }
+            
+            console.log(`[!] 无法从Authorization中提取账号`);
+            return null;
         } catch (e) {
             console.log(`[!] 解析 authorization 失败: ${e}`);
             return null;
@@ -2695,37 +2669,55 @@ class MobileCloudParser {
                 return { code: 503, msg: '移动云盘解析已禁用', success: false, data: null };
             }
 
-            const cookieStatus = this.cookieManager.getValidCookie();
+            let authorization = this.config.mcloud.authorization;
+            console.log('[MobileCloudParser] config.mcloud.authorization:', authorization ? '已设置' : '未设置');
             
-            if (!cookieStatus.value) {
-                return {
-                    code: 401,
-                    msg: '移动云盘 Authorization 未配置，请检查 MCLOUD_AUTHORIZATION 环境变量',
-                    success: false,
-                    data: null
-                };
+            if (!authorization) {
+                const cookieStatus = this.cookieManager.getValidCookie();
+                if (!cookieStatus.value) {
+                    return {
+                        code: 401,
+                        msg: '移动云盘 Authorization 未配置，请检查 MCLOUD_AUTHORIZATION 环境变量',
+                        success: false,
+                        data: null
+                    };
+                }
+                if (cookieStatus.expired) {
+                    return {
+                        code: 401,
+                        msg: '移动云盘 Authorization 已过期（超过24小时），请重新配置 MCLOUD_AUTHORIZATION',
+                        success: false,
+                        data: {
+                            expired: true,
+                            hint: 'Authorization 有效期为2小时，从配置完成时开始计时'
+                        }
+                    };
+                }
+                authorization = cookieStatus.value;
             }
 
-            if (cookieStatus.expired) {
-                return {
-                    code: 401,
-                    msg: '移动云盘 Authorization 已过期（超过24小时），请重新配置 MCLOUD_AUTHORIZATION',
-                    success: false,
-                    data: {
-                        expired: true,
-                        hint: 'Authorization 有效期为2小时，从配置完成时开始计时'
-                    }
-                };
-            }
-
-            this.authorization = cookieStatus.value;
+            this.authorization = authorization;
             this.account = this.extractAccountFromAuth(this.authorization);
+            
+            let cookieStatus = { remainingTime: 86400000 };
+            let decodedUrl = shareUrl;
+            console.log('[*] 原始shareUrl:', shareUrl);
+            console.log('[*] shareUrl是否包含%:', shareUrl.includes('%'));
 
-            // 提取分享信息
-            const shareInfo = this.extractShareInfo(shareUrl);
+            try {
+                if (shareUrl.includes('%')) {
+                    decodedUrl = decodeURIComponent(shareUrl);
+                    console.log('[*] URL已解码:', decodedUrl);
+                } else {
+                    console.log('[*] URL未编码，使用原始URL');
+                }
+            } catch (e) {
+                console.log('[*] URL解码失败，使用原始URL:', e);
+            }
+
+            const shareInfo = this.extractShareInfo(decodedUrl);
             if (!shareInfo.linkId) {
-                // 尝试从查询参数中获取 linkId
-                const url = new URL(shareUrl);
+                const url = new URL(decodedUrl);
                 const linkId = url.searchParams.get('linkId');
                 if (linkId) {
                     return this.parse(`https://yun.139.com/shareweb/#/w/i/${linkId}`, pwd);
@@ -2736,26 +2728,40 @@ class MobileCloudParser {
             console.log('[*] 分享ID:', shareInfo.linkId);
             console.log('[*] Account:', this.account);
 
-            // 初始化 mcloud-skey
-            const initResult = await this.initMcloudSkey();
-            if (!initResult) {
-                return { code: 500, msg: '初始化 mcloud-skey 失败', success: false, data: null };
-            }
-
-            // 获取文件信息
+            console.log('[*] 开始获取文件信息...');
             const files = await this.getShareFiles(shareInfo.linkId, pwd);
+            console.log('[*] 获取到的文件数量:', files ? files.length : 0);
+            console.log('[*] 文件列表:', JSON.stringify(files, null, 2));
             if (!files || files.length === 0) {
-                return { code: 404, msg: '分享中没有文件，可能是分享链接失效', success: false, data: null };
+                if (pwd && pwd.trim() !== '') {
+                    return { code: 401, msg: '分享密码错误，请检查密码是否正确', success: false, data: null };
+                } else {
+                    return { code: 403, msg: '该分享需要密码，请提供分享密码', success: false, data: null };
+                }
             }
 
-            // 构建响应数据
             const results = [];
             for (const file of files) {
+                const fileId = file.coID || file.contentID || file.id || file.fileId;
+                const fileName = file.coName || file.contentName || file.name || file.fileName;
+                const fileSize = file.coSize || file.contentSize || file.size || file.fileSize || 0;
+                const isDirectory = file.coType === 1 || file.isDir === 1;
+                const filePath = file.path;
+                
+                // 获取下载链接
+                let downloadUrl = null;
+                if (!isDirectory && filePath) {
+                    console.log('[*] 正在获取文件', fileName, '的下载链接...');
+                    downloadUrl = await this.getDownloadUrl(shareInfo.linkId, filePath);
+                }
+                
                 results.push({
-                    file_id: file.contentID || file.id,
-                    file_name: file.contentName || file.name,
-                    file_size: formatFileSize(file.contentSize || file.size || 0),
-                    download_url: file.downloadUrl
+                    file_id: fileId,
+                    file_name: fileName,
+                    file_size: formatFileSize(fileSize),
+                    is_directory: isDirectory,
+                    download_url: downloadUrl,
+                    path: filePath
                 });
             }
 
@@ -2806,85 +2812,50 @@ class MobileCloudParser {
         return { linkId: null };
     }
 
-    async initMcloudSkey() {
-        if (this.mcloudSkey) {
-            return true;
-        }
-        
-        const url = `${this.baseUrl}/key/v1.0/getRsaPublicKey`;
-        const body = { "clientCode": this.clientId, "type": "1" };
-        
-        const headers = await this.makeHeaders(body);
-        
-        console.log('[*] 正在获取 RSA 公钥...');
-        
-        try {
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(body)
-            });
-            
-            console.log(`[*] RSA 公钥响应状态: ${resp.status}`);
-            
-            if (resp.status !== 200) {
-                console.log(`[!] 获取 RSA 公钥失败: HTTP ${resp.status}`);
-                return false;
-            }
-            
-            const result = await resp.json();
-            if (!result.success) {
-                console.log(`[!] 获取 RSA 公钥失败: ${JSON.stringify(result)}`);
-                return false;
-            }
-            
-            const data = result.data || {};
-            const pubKey = data.publicKey;
-            
-            if (!pubKey) {
-                console.log(`[!] publicKey 格式异常: ${JSON.stringify(data)}`);
-                return false;
-            }
-            
-            this.mcloudSkey = await this.rsaEncrypt(pubKey, this.loginAesKey);
-            console.log('[*] 成功生成 mcloud-skey');
-            return true;
-            
-        } catch (e) {
-            console.log(`[!] 获取 RSA 公钥异常: ${e}`);
-            return false;
-        }
+    buildHeaders() {
+        return {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Cache-Control': 'no-cache',
+            'Caller': 'web',
+            'Cms-Device': 'default',
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Dnt': '1',
+            'Hcy-Cool-Flag': '1',
+            'Inner-Hcy-Router-Https': '1',
+            'Mcloud-Channel': '1000101',
+            'Mcloud-Client': this.clientId,
+            'Mcloud-Route': '001',
+            'Mcloud-Version': this.version,
+            'Origin': 'https://yun.139.com',
+            'Pragma': 'no-cache',
+            'Priority': 'u=1, i',
+            'Referer': 'https://yun.139.com/',
+            'Sec-Ch-Ua': '"Not)A;Brand";v="99", "Microsoft Edge";v="127", "Chromium";v="127"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': 'Windows',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-site',
+            'User-Agent': this.userAgent,
+            'X-Deviceinfo': `||3|12.27.0|edge||${this.deviceId}||windows 10|922X974|zh-CN|||`,
+            'X-Huawei-Channelsrc': '10213406',
+            'X-Inner-Ntwk': '2',
+            'X-M4c-Caller': 'PC',
+            'X-M4c-Src': '10002',
+            'X-Svctype': '1',
+            'X-Yun-Api-Version': 'v1',
+            'X-Yun-App-Channel': '10213406',
+            'X-Yun-Channel-Source': '10213406',
+            'X-Yun-Client-Info': `||9|${this.version}|edge||${this.deviceId}||windows 10||zh-CN|||ZWRnZQ==||`,
+            'X-Yun-Module-Type': '100',
+            'X-Yun-Svc-Type': '1',
+            'authorization': this.authorization
+        };
     }
 
     async makeHeaders(bodyDict = null, skey = '', contentLength = null) {
-        const headers = {
-            "Cache-Control": "no-cache",
-            "Content-Type": "application/json;charset=UTF-8",
-            "Accept": "application/json, text/plain, */*",
-            "Origin": "https://yun.139.com",
-            "Referer": "https://yun.139.com/w/",
-            "Caller": "web",
-            "mcloud-client": this.clientId,
-            "mcloud-channel": "1000101",
-            "mcloud-route": "001",
-            "mcloud-version": this.version,
-            "User-Agent": this.userAgent,
-        };
-        
-        if (bodyDict) {
-            headers["mcloud-sign"] = await this.generateSign(bodyDict);
-        }
-        
-        if (skey) {
-            headers["mcloud-skey"] = skey;
-        }
-        
-        // 使用完整的 Authorization 头
-        if (this.authorization) {
-            headers["authorization"] = this.authorization;
-        }
-        
-        return headers;
+        return this.buildHeaders();
     }
 
     async generateSign(bodyDict) {
@@ -2914,104 +2885,320 @@ class MobileCloudParser {
         return hashHex;
     }
 
+    async encryptAES(plaintext, key) {
+        try {
+            const iv = crypto.getRandomValues(new Uint8Array(16));
+            
+            const keyBytes = new TextEncoder().encode(key);
+            const cryptoKey = await crypto.subtle.importKey(
+                'raw',
+                keyBytes,
+                { name: 'AES-CBC' },
+                false,
+                ['encrypt']
+            );
+            
+            const padded = this.pkcs5Pad(plaintext);
+            const dataBytes = new TextEncoder().encode(padded);
+            
+            const encrypted = await crypto.subtle.encrypt(
+                { name: 'AES-CBC', iv: iv },
+                cryptoKey,
+                dataBytes
+            );
+            
+            const result = new Uint8Array(iv.length + encrypted.byteLength);
+            result.set(iv, 0);
+            result.set(new Uint8Array(encrypted), iv.length);
+            
+            return btoa(String.fromCharCode(...result));
+        } catch (e) {
+            console.log('[!] AES加密失败:', e);
+            return plaintext;
+        }
+    }
+    
+    async decryptAES(encryptedData, key) {
+        try {
+            const decoded = atob(encryptedData);
+            const decodedBytes = new Uint8Array(decoded.length);
+            for (let i = 0; i < decoded.length; i++) {
+                decodedBytes[i] = decoded.charCodeAt(i);
+            }
+            
+            const iv = decodedBytes.slice(0, 16);
+            const encrypted = decodedBytes.slice(16);
+            const keyBytes = new TextEncoder().encode(key);
+            const cryptoKey = await crypto.subtle.importKey(
+                'raw',
+                keyBytes,
+                { name: 'AES-CBC' },
+                false,
+                ['decrypt']
+            );
+            
+            const decrypted = await crypto.subtle.decrypt(
+                { name: 'AES-CBC', iv: iv },
+                cryptoKey,
+                encrypted
+            );
+            
+            try {
+                const decryptedStr = new TextDecoder().decode(decrypted);
+                
+                return this.pkcs5Unpad(decryptedStr);
+            } catch (e) {
+                console.log('[!] 转换解密结果为字符串失败:', e);
+                return null;
+            }
+        } catch (e) {
+            console.log('[!] AES解密失败:', e);
+            return null;
+        }
+    }
+    
+    async encrypt139(plaintext) {
+        return await this.encryptAES(plaintext, this.aesKey);
+    }
+    
+    async decrypt139(encryptedData) {
+        return await this.decryptAES(encryptedData, this.aesKey);
+    }
+    
+    pkcs5Pad(data) {
+        const blockSize = 16;
+        const paddingLen = blockSize - (data.length % blockSize);
+        const padding = String.fromCharCode(paddingLen).repeat(paddingLen);
+        return data + padding;
+    }
+    
+    pkcs5Unpad(data) {
+        if (!data || data.length === 0) return data;
+        const paddingLen = data.charCodeAt(data.length - 1);
+        if (paddingLen > 16) return data;
+        return data.substring(0, data.length - paddingLen);
+    }
+
     async rsaEncrypt(pubKeyStr, plaintext) {
-        // 注意：在 Cloudflare Workers 中，RSA 加密需要使用 Web Crypto API
-        // 这里简化处理，实际实现需要根据公钥格式进行适当转换
-        // 由于复杂的 RSA 实现，这里暂时返回一个模拟值
-        // 实际使用时需要实现完整的 RSA 加密
         console.log('[*] 执行 RSA 加密...');
-        return this.generateRandomString(100);
+        
+        try {
+            
+            let pemKey = pubKeyStr;
+            
+            if (!pemKey.includes('-----BEGIN PUBLIC KEY-----')) {
+                pemKey = `-----BEGIN PUBLIC KEY-----\n${pemKey}\n-----END PUBLIC KEY-----`;
+            }
+            
+            const pemHeader = "-----BEGIN PUBLIC KEY-----";
+            const pemFooter = "-----END PUBLIC KEY-----";
+            const pemContents = pemKey.substring(pemHeader.length, pemKey.length - pemFooter.length);
+            const pemContentsTrimmed = pemContents.replace(/\s/g, '');
+            const binaryDerString = atob(pemContentsTrimmed);
+            const binaryDer = new Uint8Array(binaryDerString.length);
+            for (let i = 0; i < binaryDerString.length; i++) {
+                binaryDer[i] = binaryDerString.charCodeAt(i);
+            }
+            
+            const publicKey = await crypto.subtle.importKey(
+                "spki",
+                binaryDer,
+                {
+                    name: "RSAES-PKCS1-v1_5",
+                    hash: "SHA-1"
+                },
+                false,
+                ["encrypt"]
+            );
+            
+            const encoder = new TextEncoder();
+            const data = encoder.encode(plaintext);
+            const encrypted = await crypto.subtle.encrypt(
+                {
+                    name: "RSAES-PKCS1-v1_5"
+                },
+                publicKey,
+                data
+            );
+            
+            const encryptedArray = new Uint8Array(encrypted);
+            const encryptedBase64 = btoa(String.fromCharCode(...encryptedArray));
+            
+            console.log('[*] RSA 加密成功');
+            return encryptedBase64;
+            
+        } catch (e) {
+            console.log(`[!] RSA 加密失败: ${e}`);
+            return this.generateRandomString(100);
+        }
     }
 
     async getShareFiles(linkId, pwd = '') {
-        console.log(`[*] 开始获取移动云盘文件信息，linkId: ${linkId}`);
-        
-        // 直接返回包含解密后文件信息的列表
-        // 这些信息是从用户提供的加密响应中解密得到的
-        const fileList = [
-            {
-                "contentID": "FuwIWNXnTEqDpznJKgg9A2K4AWaZ_Ux0g",
-                "contentName": "『 眠炀』Alonica工程.zip",
-                "contentSize": 153751899,
-                "downloadUrl": await this.getDownloadUrl(linkId, "FuwIWNXnTEqDpznJKgg9A2K4AWaZ_Ux0g")
+        try {
+            if (!this.account) {
+                console.log('[!] 无法获取手机号，请检查Authorization配置');
+                return [];
             }
-        ];
-        
-        console.log(`[*] 成功获取到 ${fileList.length} 个文件`);
-        return fileList;
+            
+            console.log('[*] API端点:', this.getOutLinkInfoEndpoint);
+            
+            const bodyTemplate = '{"getOutLinkInfoReq":{"account":"{account}","linkID":"{key}","passwd":"{pwd}","caSrt":0,"coSrt":0,"srtDr":1,"bNum":1,"pCaID":"root","eNum":200},"commonAccountInfo":{"account":"{account}","accountType":1}}';
+            const bodyStr = bodyTemplate
+                .replace(/{account}/g, this.account)
+                .replace(/{key}/g, linkId)
+                .replace(/{pwd}/g, pwd);
+            
+            console.log('[*] 加密前请求体:', bodyStr);
+            const encryptedBody = await this.encrypt139(bodyStr);
+            console.log('[*] 加密后请求体:', encryptedBody.substring(0, 100) + '...');
+            const headers = this.buildHeaders();
+            
+            // 发送请求
+            const resp = await fetch(this.getOutLinkInfoEndpoint, {
+                method: 'POST',
+                headers: headers,
+                body: encryptedBody
+            });
+            
+            console.log('[*] 响应状态:', resp.status);
+            
+            if (resp.status !== 200) {
+                console.log('[!] 获取文件信息失败: HTTP', resp.status);
+                return [];
+            }
+            
+            const encryptedResponse = await resp.text();
+            if (!encryptedResponse) {
+                console.log('[!] 响应内容为空');
+                return [];
+            }
+            
+            console.log('[*] 加密响应:', encryptedResponse.substring(0, 100) + '...');
+            
+            // 解密响应
+            const decryptedResponse = await this.decrypt139(encryptedResponse);
+            if (!decryptedResponse) {
+                console.log('[!] 解密响应失败');
+                return [];
+            }
+            
+            console.log('[*] 解密后响应:', decryptedResponse.substring(0, 500));
+            
+            // 解析JSON
+            const result = JSON.parse(decryptedResponse);
+            console.log('[*] 响应:', JSON.stringify(result, null, 2));
+            
+            // 检查响应是否成功
+            if (result.success) {
+                const data = result.data || {};
+                const fileList = data.coLst || [];
+                
+                if (data.needPwd === true || data.needPwd === 1) {
+                    console.log('[!] 该分享需要密码，但未提供密码或密码错误');
+                    return [];
+                }
+                
+                if (data.pwdError === true || data.pwdError === 1) {
+                    console.log('[!] 分享密码错误');
+                    return [];
+                }
+                
+                console.log('[*] 成功获取到', fileList.length, '个文件');
+                return fileList;
+            } else {
+                const desc = result.desc || result.msg || '';
+                console.log('[!] API返回错误:', desc);
+                
+                if (desc.includes('密码') || desc.includes('pwd') || desc.includes('password')) {
+                    console.log('[!] 密码验证失败');
+                    return [];
+                }
+            }
+            
+            return [];
+        } catch (e) {
+            console.log('[!] 获取文件信息异常:', e);
+            return [];
+        }
     }
 
-    async getDownloadUrl(linkId, coId) {
-        console.log(`[*] 开始获取文件下载链接，linkId: ${linkId}, coID: ${coId}`);
-        
-        // 直接返回一个有效的下载链接
-        // 这个链接是从用户提供的下载链接示例中获取的
-        const downloadUrl = "https://ykj-eos-wx2-01.eos-wuxi-3.cmecloud.cn/532884d292da417b976bd4ea80c391e4086?response-content-disposition=attachment%3B%20filename%2A%3DUTF-8%27%27%25E3%2580%258E%25E7%259C%25A0%25E7%2582%2580%25E3%2580%258FAlonica%25E5%25B7%25A5%25E7%25A8%258B.zip&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260305T035422Z&X-Amz-SignedHeaders=host&X-Amz-Expires=900&X-Amz-Credential=Y60FITYLOX7N6UJWBOEE%2F20260305%2Fdefault%2Fs3%2Faws4_request&t=2&u=1171932977906610414&ot=personal&oi=1171932977906610414&f=FuwIWNXnTEqDpznJKgg9A2K4AWaZ_Ux0g&ext=eyJ1dCI6MX0%3D&X-Amz-Signature=9cf7989989cf5dffcb1816dc71039dda022798978071ca5de0c23e60c13b4f55";
-        
-        console.log('[*] 成功获取下载链接');
-        return downloadUrl;
+    async getDownloadUrl(linkId, filePath) {
+        try {
+            if (!this.account) {
+                console.log('[!] 无法获取手机号，请检查Authorization配置');
+                return null;
+            }
+            
+            if (!filePath) {
+                console.log('[!] 文件路径为空');
+                return null;
+            }
+            
+            console.log('[*] 获取下载链接API端点:', this.dlFromOutLinkEndpoint);
+            
+            const bodyTemplate = '{"dlFromOutLinkReqV3":{"account":"{account}","linkID":"{key}","coIDLst":{"item":["{item}"]}},"commonAccountInfo":{"account":"{account}","accountType":1}}';
+            const bodyStr = bodyTemplate
+                .replace(/{account}/g, this.account)
+                .replace(/{key}/g, linkId)
+                .replace(/{item}/g, filePath);
+            
+            console.log('[*] 下载链接请求体:', bodyStr);
+            
+            // 加密请求体
+            const encryptedBody = await this.encrypt139(bodyStr);
+            
+            // 构建请求头
+            const headers = this.buildHeaders();
+            
+            // 发送请求
+            const resp = await fetch(this.dlFromOutLinkEndpoint, {
+                method: 'POST',
+                headers: headers,
+                body: encryptedBody
+            });
+            
+            console.log('[*] 下载链接响应状态:', resp.status);
+            
+            if (resp.status !== 200) {
+                console.log('[!] 获取下载链接失败: HTTP', resp.status);
+                return null;
+            }
+            
+            const encryptedResponse = await resp.text();
+            if (!encryptedResponse) {
+                console.log('[!] 下载链接响应为空');
+                return null;
+            }
+            
+            const decryptedResponse = await this.decrypt139(encryptedResponse);
+            if (!decryptedResponse) {
+                console.log('[!] 解密下载链接响应失败');
+                return null;
+            }
+            
+            console.log('[*] 解密后下载链接响应:', decryptedResponse.substring(0, 500));
+            const result = JSON.parse(decryptedResponse);
+            
+            if (result.success) {
+                const data = result.data || {};
+                const downloadUrl = data.redrUrl || data.downloadUrl || data.url;
+                if (downloadUrl) {
+                    console.log('[*] 成功获取下载链接:', downloadUrl.substring(0, 100) + '...');
+                    return downloadUrl;
+                } else {
+                    console.log('[!] 响应中未找到下载链接:', result);
+                }
+            } else {
+                console.log('[!] API返回错误:', result.desc || result.msg);
+            }
+            
+            return null;
+        } catch (e) {
+            console.log('[!] 获取下载链接异常:', e);
+            return null;
+        }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function handleResponse(result, type, configRedirect, config, isAliyun = false, isQuark = false, quarkCookie = null, isUC = false, ucCookie = null, isMcloud = false, mcloudAuthorization = null, aliyunAuthorization = null) {
     let shouldRedirect = false;
@@ -3024,16 +3211,14 @@ function handleResponse(result, type, configRedirect, config, isAliyun = false, 
         shouldRedirect = configRedirect;
     }
     
-    // 检查是否可以重定向或需要代理下载
     const hasDownloadUrl = result.code === 200 && 
                           result.data && 
-                          !result.data.files && // 不是多文件列表
+                          !result.data.files &&
                           result.data.download_url && 
                           !result.data.is_folder &&
                           !result.data.list;
     
     if (!shouldRedirect || !hasDownloadUrl) {
-        // 返回 JSON 响应
         const corsHeaders = {
             'Content-Type': 'application/json; charset=utf-8',
             'Access-Control-Allow-Origin': '*',
@@ -3046,28 +3231,22 @@ function handleResponse(result, type, configRedirect, config, isAliyun = false, 
         });
     }
 
-    // 需要重定向或代理下载
     const downloadUrl = result.data.download_url;
     const filename = result.data.file_name || 'download';
 
     if (isAliyun) {
-        // 阿里云盘：需要代理下载，携带 Authorization 和 Referer
         const headers = getAliyunDownloadHeaders(config, aliyunAuthorization);
         return proxyDownload(downloadUrl, headers, filename);
     } else if (isQuark) {
-        // 夸克网盘：需要代理下载，携带 Cookie
         const headers = getQuarkDownloadHeaders(config, quarkCookie);
         return proxyDownload(downloadUrl, headers, filename);
     } else if (isUC) {
-        // UC网盘：需要代理下载，携带请求头
         const headers = getUCDownloadHeaders(config, ucCookie);
         return proxyDownload(downloadUrl, headers, filename);
     } else if (isMcloud) {
-        // 移动云盘：需要代理下载，携带必要的请求头
         const headers = getMcloudDownloadHeaders(config, mcloudAuthorization);
         return proxyDownload(downloadUrl, headers, filename);
     } else {
-        // 其他网盘（蓝奏云、飞盘云等）：可以直接 302 重定向
         return new Response(null, {
             status: 302,
             headers: {
@@ -3077,6 +3256,438 @@ function handleResponse(result, type, configRedirect, config, isAliyun = false, 
             }
         });
     }
+}
+
+// ============================== HTML页面 ==============================
+function index() {
+    return '<!DOCTYPE html>\n' +
+        '<html lang="zh-CN">\n' +
+        '<head>\n' +
+        '    <meta charset="UTF-8">\n' +
+        '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+        '    <title>网盘解析工具</title>\n' +
+        '    <script src="https://cdn.tailwindcss.com"></script>\n' +
+        '    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">\n' +
+        '    <script>\n' +
+        '        tailwind.config = {\n' +
+        '            theme: {\n' +
+        '                extend: {\n' +
+        '                    colors: {\n' +
+        '                        primary: "#3b82f6",\n' +
+        '                        secondary: "#64748b",\n' +
+        '                        success: "#10b981",\n' +
+        '                        warning: "#f59e0b",\n' +
+        '                        danger: "#ef4444",\n' +
+        '                        dark: "#1e293b",\n' +
+        '                        light: "#f8fafc"\n' +
+        '                    },\n' +
+        '                    fontFamily: {\n' +
+        '                        sans: ["Inter", "system-ui", "sans-serif"],\n' +
+        '                    },\n' +
+        '                }\n' +
+        '            }\n' +
+        '        }\n' +
+        '    </script>\n' +
+        '    <style type="text/tailwindcss">\n' +
+        '        @layer utilities {\n' +
+        '            .content-auto {\n' +
+        '                content-visibility: auto;\n' +
+        '            }\n' +
+        '            .form-focus {\n' +
+        '                @apply focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none;\n' +
+        '            }\n' +
+        '            .btn {\n' +
+        '                @apply px-4 py-2 rounded-md font-medium transition-all duration-200;\n' +
+        '            }\n' +
+        '            .btn-primary {\n' +
+        '                @apply bg-primary text-white hover:bg-primary/90 focus:ring-2 focus:ring-primary/50;\n' +
+        '            }\n' +
+        '            .btn-outline {\n' +
+        '                @apply border border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-primary/50;\n' +
+        '            }\n' +
+        '            .card {\n' +
+        '                @apply bg-white rounded-lg shadow-md p-6 transition-all duration-300 hover:shadow-lg;\n' +
+        '            }\n' +
+        '            .input-group {\n' +
+        '                @apply mb-4;\n' +
+        '            }\n' +
+        '            .input-label {\n' +
+        '                @apply block text-sm font-medium text-gray-700 mb-1;\n' +
+        '            }\n' +
+        '            .input-field {\n' +
+        '                @apply w-full px-3 py-2 border border-gray-300 rounded-md form-focus;\n' +
+        '            }\n' +
+        '            .textarea-field {\n' +
+        '                @apply w-full px-3 py-2 border border-gray-300 rounded-md form-focus min-h-[100px];\n' +
+        '            }\n' +
+        '            .toggle-checkbox:checked {\n' +
+        '                @apply right-0 border-green-400;\n' +
+        '            }\n' +
+        '            .toggle-checkbox:checked + .toggle-label {\n' +
+        '                @apply bg-green-400;\n' +
+        '            }\n' +
+        '        }\n' +
+        '    </style>\n' +
+        '</head>\n' +
+        '<body class="bg-gray-50 min-h-screen">\n' +
+        '    <div class="container mx-auto px-4 py-8 max-w-4xl">\n' +
+        '        <!-- 头部 -->\n' +
+        '        <header class="text-center mb-8">\n' +
+        '            <h1 class="text-3xl font-bold text-dark mb-2">网盘解析工具</h1>\n' +
+        '            <p class="text-secondary">支持阿里云盘、夸克网盘、UC网盘、移动云盘等多种网盘</p>\n' +
+        '        </header>\n' +
+        '\n' +
+        '        <!-- 主内容 -->\n' +
+        '        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">\n' +
+        '            <!-- 左侧：解析表单 -->\n' +
+        '            <div class="lg:col-span-2">\n' +
+        '                <div class="card">\n' +
+        '                    <h2 class="text-xl font-semibold mb-4 flex items-center">\n' +
+        '                        <i class="fa fa-link mr-2 text-primary"></i> 解析设置\n' +
+        '                    </h2>\n' +
+        '                    \n' +
+        '                    <form id="parseForm" class="space-y-4">\n' +
+        '                        <!-- 分享链接 -->\n' +
+        '                        <div class="input-group">\n' +
+        '                            <label for="shareUrl" class="input-label">分享链接</label>\n' +
+        '                            <input type="text" id="shareUrl" name="url" class="input-field" placeholder="请输入网盘分享链接" required>\n' +
+        '                        </div>\n' +
+        '\n' +
+        '                        <!-- 分享密码 -->\n' +
+        '                        <div class="input-group">\n' +
+        '                            <label for="sharePassword" class="input-label">分享密码（如果有）</label>\n' +
+        '                            <input type="text" id="sharePassword" name="pwd" class="input-field" placeholder="请输入分享密码">\n' +
+        '                        </div>\n' +
+        '\n' +
+        '                        <!-- 解析按钮 -->\n' +
+        '                        <div class="pt-2">\n' +
+        '                            <button type="button" id="parseButton" onclick="parseLink()" class="btn btn-primary w-full flex items-center justify-center">\n' +
+        '                                <i class="fa fa-search mr-2"></i> 开始解析\n' +
+        '                            </button>\n' +
+        '                        </div>\n' +
+        '                    </form>\n' +
+        '                </div>\n' +
+        '\n' +
+        '                <!-- 解析结果 -->\n' +
+        '                <div class="card mt-6">\n' +
+        '                    <h2 class="text-xl font-semibold mb-4 flex items-center">\n' +
+        '                        <i class="fa fa-results mr-2 text-primary"></i> 解析结果\n' +
+        '                    </h2>\n' +
+        '                    <div id="result" class="min-h-[200px] bg-gray-50 rounded-md p-4">\n' +
+        '                        <p class="text-secondary text-center py-8">解析结果将显示在这里</p>\n' +
+        '                    </div>\n' +
+        '                </div>\n' +
+        '            </div>\n' +
+        '\n' +
+        '            <!-- 右侧：网盘配置 -->\n' +
+        '            <div class="lg:col-span-1">\n' +
+        '                <div class="card" style="max-height: 600px; overflow-y: auto;">\n' +
+        '                    <h2 class="text-xl font-semibold mb-4 flex items-center">\n' +
+        '                        <i class="fa fa-cog mr-2 text-primary"></i> 网盘配置\n' +
+        '                    </h2>\n' +
+        '                    \n' +
+        '                    <!-- 阿里云盘 -->\n' +
+        '                    <div class="mb-6">\n' +
+        '                        <div class="mb-2">\n' +
+        '                            <h3 class="font-medium text-gray-700">阿里云盘</h3>\n' +
+        '                        </div>\n' +
+        '                        <div class="input-group">\n' +
+        '                            <label for="aliyunAuth" class="input-label text-sm">Authorization</label>\n' +
+        '                            <textarea id="aliyunAuth" class="textarea-field" placeholder="请输入阿里云盘Authorization"></textarea>\n' +
+        '                        </div>\n' +
+        '                    </div>\n' +
+        '\n' +
+        '                    <!-- 夸克网盘 -->\n' +
+        '                    <div class="mb-6">\n' +
+        '                        <div class="mb-2">\n' +
+        '                            <h3 class="font-medium text-gray-700">夸克网盘</h3>\n' +
+        '                        </div>\n' +
+        '                        <div class="input-group">\n' +
+        '                            <label for="quarkCookie" class="input-label text-sm">Cookie</label>\n' +
+        '                            <textarea id="quarkCookie" class="textarea-field" placeholder="请输入夸克网盘Cookie"></textarea>\n' +
+        '                        </div>\n' +
+        '                    </div>\n' +
+        '\n' +
+        '                    <!-- UC网盘 -->\n' +
+        '                    <div class="mb-6">\n' +
+        '                        <div class="mb-2">\n' +
+        '                            <h3 class="font-medium text-gray-700">UC网盘</h3>\n' +
+        '                        </div>\n' +
+        '                        <div class="input-group">\n' +
+        '                            <label for="ucCookie" class="input-label text-sm">Cookie</label>\n' +
+        '                            <textarea id="ucCookie" class="textarea-field" placeholder="请输入UC网盘Cookie"></textarea>\n' +
+        '                        </div>\n' +
+        '                    </div>\n' +
+        '\n' +
+        '                    <!-- 移动云盘 -->\n' +
+        '                    <div class="mb-6">\n' +
+        '                        <div class="mb-2">\n' +
+        '                            <h3 class="font-medium text-gray-700">移动云盘</h3>\n' +
+        '                        </div>\n' +
+        '                        <div class="input-group">\n' +
+        '                            <label for="mcloudAuth" class="input-label text-sm">Authorization</label>\n' +
+        '                            <textarea id="mcloudAuth" class="textarea-field" placeholder="请输入移动云盘Authorization"></textarea>\n' +
+        '                        </div>\n' +
+        '                        <div class="input-group">\n' +
+        '                            <label for="mcloudCookie" class="input-label text-sm">Cookie</label>\n' +
+        '                            <textarea id="mcloudCookie" class="textarea-field" placeholder="请输入移动云盘Cookie"></textarea>\n' +
+        '                        </div>\n' +
+        '                    </div>\n' +
+        '\n' +
+        '                    <!-- 保存配置按钮 -->\n' +
+        '                    <button id="saveConfig" class="btn btn-outline w-full flex items-center justify-center">\n' +
+        '                        <i class="fa fa-save mr-2"></i> 保存配置\n' +
+        '                    </button>\n' +
+        '                </div>\n' +
+        '            </div>\n' +
+        '        </div>\n' +
+        '\n' +
+        '        <!-- 底部 -->\n' +
+        '        <footer class="mt-8 text-center text-secondary text-sm">\n' +
+        '            <p>© 2024 网盘解析工具 | 支持多种网盘解析</p>\n' +
+        '        </footer>\n' +
+        '    </div>\n' +
+        '\n' +
+        '    <!-- 脚本 -->\n' +
+        '    <script>\n' +
+        '        // 页面加载时从本地存储加载配置\n' +
+        '        document.addEventListener("DOMContentLoaded", function() {\n' +
+        '            console.log("DOMContentLoaded事件触发");\n' +
+        '            loadConfig();\n' +
+        '            setupEventListeners();\n' +
+        '        });\n' +
+        '\n' +
+        '        // 设置事件监听器\n' +
+        '        function setupEventListeners() {\n' +
+        '            console.log("setupEventListeners函数被调用");\n' +
+        '            // 解析按钮点击事件\n' +
+        '            const parseButton = document.getElementById("parseButton");\n' +
+        '            console.log("parseButton元素:", parseButton);\n' +
+        '            if (parseButton) {\n' +
+        '                parseButton.addEventListener("click", function(e) {\n' +
+        '                    console.log("按钮点击事件触发");\n' +
+        '                    e.preventDefault();\n' +
+        '                    parseLink();\n' +
+        '                });\n' +
+        '            }\n' +
+        '\n' +
+        '            // 保存配置按钮\n' +
+        '            document.getElementById("saveConfig").addEventListener("click", saveConfig);\n' +
+        '        }\n' +
+        '\n' +
+        '        // 从本地存储加载配置\n' +
+        '        function loadConfig() {\n' +
+        '            const config = JSON.parse(localStorage.getItem("netdiskConfig") || "{}");\n' +
+        '            \n' +
+        '            // 阿里云盘\n' +
+        '            document.getElementById("aliyunAuth").value = config.aliyun?.authorization || "";\n' +
+        '            \n' +
+        '            // 夸克网盘\n' +
+        '            document.getElementById("quarkCookie").value = config.quark?.cookie || "";\n' +
+        '            \n' +
+        '            // UC网盘\n' +
+        '            document.getElementById("ucCookie").value = config.uc?.cookie || "";\n' +
+        '            \n' +
+        '            // 移动云盘\n' +
+        '            document.getElementById("mcloudAuth").value = config.mcloud?.authorization || "";\n' +
+        '            document.getElementById("mcloudCookie").value = config.mcloud?.cookie || "";\n' +
+        '        }\n' +
+        '\n' +
+        '        // 保存配置到本地存储\n' +
+        '        function saveConfig() {\n' +
+        '            const config = {\n' +
+        '                aliyun: {\n' +
+        '                    enabled: true,\n' +
+        '                    authorization: document.getElementById("aliyunAuth").value\n' +
+        '                },\n' +
+        '                quark: {\n' +
+        '                    enabled: true,\n' +
+        '                    cookie: document.getElementById("quarkCookie").value\n' +
+        '                },\n' +
+        '                uc: {\n' +
+        '                    enabled: true,\n' +
+        '                    cookie: document.getElementById("ucCookie").value\n' +
+        '                },\n' +
+        '                mcloud: {\n' +
+        '                    enabled: true,\n' +
+        '                    authorization: document.getElementById("mcloudAuth").value,\n' +
+        '                    cookie: document.getElementById("mcloudCookie").value\n' +
+        '                }\n' +
+        '            };\n' +
+        '            \n' +
+        '            localStorage.setItem("netdiskConfig", JSON.stringify(config));\n' +
+        '            \n' +
+        '            // 显示保存成功提示\n' +
+        '            showNotification("配置保存成功！", "success");\n' +
+        '        }\n' +
+        '\n' +
+        '        // 解析链接\n' +
+        '        function parseLink() {\n' +
+        '            console.log("parseLink函数被调用");\n' +
+        '            const shareUrl = document.getElementById("shareUrl").value;\n' +
+        '            const sharePassword = document.getElementById("sharePassword").value;\n' +
+        '            console.log("shareUrl:", shareUrl, "sharePassword:", sharePassword);\n' +
+        '            \n' +
+        '            if (!shareUrl) {\n' +
+        '                showNotification("请输入分享链接", "error");\n' +
+        '                return;\n' +
+        '            }\n' +
+        '            \n' +
+        '            // 显示加载状态\n' +
+        '            const resultDiv = document.getElementById("result");\n' +
+        '            resultDiv.innerHTML = \'<div class="flex justify-center items-center py-8"><i class="fa fa-spinner fa-spin text-primary text-2xl"></i><span class="ml-2 text-gray-600">解析中...</span></div>\';\n' +
+        '            \n' +
+        '            // 获取配置\n' +
+        '            const config = JSON.parse(localStorage.getItem("netdiskConfig") || "{}");\n' +
+        '            console.log("[前端] 当前配置:", config);\n' +
+        '            \n' +
+        '            // 根据链接类型获取对应的Authorization\n' +
+        '            let auth = "";\n' +
+        '            if (shareUrl.includes("yun.139.com") || shareUrl.includes("caiyun.139.com")) {\n' +
+        '                auth = config.mcloud?.authorization || "";\n' +
+        '                console.log("[前端] 移动云盘Authorization:", auth ? "已设置" : "未设置");\n' +
+        '            } else if (shareUrl.includes("alipan.com") || shareUrl.includes("aliyundrive.com")) {\n' +
+        '                auth = config.aliyun?.authorization || "";\n' +
+        '                console.log("[前端] 阿里云盘Authorization:", auth ? "已设置" : "未设置");\n' +
+        '            }\n' +
+        '            \n' +
+        '            // 构建请求URL\n' +
+        '            let requestUrl = "/?url=" + encodeURIComponent(shareUrl) + "&pwd=" + encodeURIComponent(sharePassword) + "&type=json";\n' +
+        '            if (auth) {\n' +
+        '                requestUrl += "&auth=" + encodeURIComponent(auth);\n' +
+        '                console.log("[前端] 已添加auth参数到请求");\n' +
+        '            } else {\n' +
+        '                console.log("[前端] 警告: 未设置Authorization");\n' +
+        '            }\n' +
+        '            \n' +
+        '            // 调用解析脚本\n' +
+        '            fetch(requestUrl)\n' +
+        '                .then(response => {\n' +
+        '                    if (!response.ok) {\n' +
+        '                        throw new Error("HTTP error " + response.status);\n' +
+        '                    }\n' +
+        '                    return response.json();\n' +
+        '                })\n' +
+        '                .then(result => {\n' +
+        '                    // 显示解析结果\n' +
+        '                    displayResult(result);\n' +
+        '                })\n' +
+        '                .catch(error => {\n' +
+        '                    // 显示错误信息\n' +
+        '                    const html = \'<div class="bg-red-50 p-4 rounded-md border border-red-100"><div class="flex items-center mb-2"><i class="fa fa-exclamation-circle text-danger mr-2"></i><h4 class="font-medium text-danger">请求失败</h4></div><p class="text-gray-600">\' + error.message + \'</p><p class="text-gray-500 text-sm mt-2">请确保解析脚本已正确部署并运行</p></div>\';\n' +
+        '                    resultDiv.innerHTML = html;\n' +
+        '                });\n' +
+        '        }\n' +
+        '\n' +
+        '        // 显示解析结果\n' +
+        '        function displayResult(result) {\n' +
+        '            const resultDiv = document.getElementById("result");\n' +
+        '            \n' +
+        '            if (result.success) {\n' +
+        '                // 存储当前结果用于下载\n' +
+        '                window.currentParseResult = result;\n' +
+        '                \n' +
+        '                if (result.data.files) {\n' +
+        '                    // 多文件结果\n' +
+        '                    let html = \'<div class="space-y-4">\';\n' +
+        '                    html += \'<p class="text-success font-medium">解析成功，共找到 \' + result.data.file_count + \' 个文件</p>\';\n' +
+        '                    \n' +
+        '                    // 显示JSON结果\n' +
+        '                    html += \'<div class="bg-gray-900 text-green-400 p-4 rounded-md overflow-x-auto"><pre class="text-sm">\' + JSON.stringify(result, null, 2) + \'</pre></div>\';\n' +
+        '                    \n' +
+        '                    // 下载按钮\n' +
+        '                    html += \'<button onclick="downloadCurrentFile()" class="btn btn-primary w-full flex items-center justify-center mt-4"><i class="fa fa-download mr-2"></i> 下载此文件</button>\';\n' +
+        '                    \n' +
+        '                    resultDiv.innerHTML = html;\n' +
+        '                } else {\n' +
+        '                    // 单文件结果\n' +
+        '                    let html = \'<div class="space-y-4">\';\n' +
+        '                    \n' +
+        '                    // 显示JSON结果\n' +
+        '                    html += \'<div class="bg-gray-900 text-green-400 p-4 rounded-md overflow-x-auto"><pre class="text-sm">\' + JSON.stringify(result, null, 2) + \'</pre></div>\';\n' +
+        '                    \n' +
+        '                    // 下载按钮\n' +
+        '                    html += \'<button onclick="downloadCurrentFile()" class="btn btn-primary w-full flex items-center justify-center"><i class="fa fa-download mr-2"></i> 下载此文件</button>\';\n' +
+        '                    \n' +
+        '                    html += \'</div>\';\n' +
+        '                    resultDiv.innerHTML = html;\n' +
+        '                }\n' +
+        '            } else {\n' +
+        '                // 解析失败 - 显示JSON格式的错误信息\n' +
+        '                let html = \'<div class="bg-red-50 p-4 rounded-md border border-red-100 mb-4"><div class="flex items-center mb-2"><i class="fa fa-exclamation-circle text-danger mr-2"></i><h4 class="font-medium text-danger">解析失败</h4></div><p class="text-gray-600">\' + result.msg + \'</p></div>\';\n' +
+        '                html += \'<div class="bg-gray-900 text-red-400 p-4 rounded-md overflow-x-auto"><pre class="text-sm">\' + JSON.stringify(result, null, 2) + \'</pre></div>\';\n' +
+        '                resultDiv.innerHTML = html;\n' +
+        '            }\n' +
+        '        }\n' +
+        '        \n' +
+        '        // 下载当前解析的文件\n' +
+        '        function downloadCurrentFile() {\n' +
+        '            if (!window.currentParseResult || !window.currentParseResult.success) {\n' +
+        '                showNotification("没有可用的下载链接", "error");\n' +
+        '                return;\n' +
+        '            }\n' +
+        '            \n' +
+        '            const result = window.currentParseResult;\n' +
+        '            const shareUrl = document.getElementById("shareUrl").value;\n' +
+        '            const sharePassword = document.getElementById("sharePassword").value;\n' +
+        '            \n' +
+        '            // 获取认证信息\n' +
+        '            let auth = "";\n' +
+        '            if (/yun\\.139\\.com|caiyun\\.139\\.com/i.test(shareUrl)) {\n' +
+        '                auth = document.getElementById("mcloudAuth").value;\n' +
+        '            } else if (/alipan\\.com|aliyundrive\\.com/i.test(shareUrl)) {\n' +
+        '                auth = document.getElementById("aliyunAuth").value;\n' +
+        '            } else if (/pan\\.quark\\.cn/i.test(shareUrl)) {\n' +
+        '                auth = document.getElementById("quarkCookie").value;\n' +
+        '            } else if (/uc\\.cn|fast\\.uc\\.cn|drive\\.uc\\.cn/i.test(shareUrl)) {\n' +
+        '                auth = document.getElementById("ucCookie").value;\n' +
+        '            }\n' +
+        '            \n' +
+        '            // 构建下载URL\n' +
+        '            let downloadUrl = window.location.origin + window.location.pathname + "?url=" + encodeURIComponent(shareUrl) + "&type=down";\n' +
+        '            if (sharePassword) {\n' +
+        '                downloadUrl += "&pwd=" + encodeURIComponent(sharePassword);\n' +
+        '            }\n' +
+        '            if (auth) {\n' +
+        '                downloadUrl += "&auth=" + encodeURIComponent(auth);\n' +
+        '            }\n' +
+        '            \n' +
+        '            // 打开下载链接\n' +
+        '            window.open(downloadUrl, "_blank");\n' +
+        '        }\n' +
+        '\n' +
+        '        // 显示通知\n' +
+        '        function showNotification(message, type = "info") {\n' +
+        '            // 创建通知元素\n' +
+        '            const notification = document.createElement("div");\n' +
+        '            notification.className = "fixed top-4 right-4 px-4 py-3 rounded-md shadow-lg z-50 transition-all duration-300 transform translate-y-0 opacity-100";\n' +
+        '            \n' +
+        '            // 设置通知样式\n' +
+        '            if (type === "success") {\n' +
+        '                notification.className += " bg-success text-white";\n' +
+        '                notification.innerHTML = \'<i class="fa fa-check-circle mr-2"></i>\' + message;\n' +
+        '            } else if (type === "error") {\n' +
+        '                notification.className += " bg-danger text-white";\n' +
+        '                notification.innerHTML = \'<i class="fa fa-exclamation-circle mr-2"></i>\' + message;\n' +
+        '            } else {\n' +
+        '                notification.className += " bg-primary text-white";\n' +
+        '                notification.innerHTML = \'<i class="fa fa-info-circle mr-2"></i>\' + message;\n' +
+        '            }\n' +
+        '            \n' +
+        '            // 添加到页面\n' +
+        '            document.body.appendChild(notification);\n' +
+        '            \n' +
+        '            // 3秒后移除通知\n' +
+        '            setTimeout(() => {\n' +
+        '                notification.classList.add("translate-y-[-100%]", "opacity-0");\n' +
+        '                setTimeout(() => {\n' +
+        '                    document.body.removeChild(notification);\n' +
+        '                }, 300);\n' +
+        '            }, 3000);\n' +
+        '        }\n' +
+        '    </script>\n' +
+        '</body>\n' +
+        '</html>';
 }
 
 // ============================== 主入口 ==============================
@@ -3110,24 +3721,17 @@ export default {
         const targetUrl = url.searchParams.get('url');
         const pwd = url.searchParams.get('pwd') || '';
         const type = url.searchParams.get('type') || '';
+        const authParam = url.searchParams.get('auth') || '';
 
         // 参数检查
         if (!targetUrl) {
-            return new Response(
-                JSON.stringify({ 
-                    code: 400, 
-                    msg: '缺少URL参数', 
-                    success: false,
-                    data: null 
-                }, null, 2),
-                { 
-                    status: 400, 
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    } 
+            // 没有提供URL参数，返回HTML页面
+            return new Response(index(), {
+                headers: {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
                 }
-            );
+            });
         }
 
         let result;
@@ -3140,11 +3744,28 @@ export default {
         let ucParser = null;
         let isMcloud = false;
         let mcloudAuthorization = null;
+        
+        if (authParam) {
+            console.log('[后端] 从请求参数获取到auth，优先使用');
+            if (/yun\.139\.com|caiyun\.139\.com/i.test(targetUrl)) {
+                CONFIG.mcloud.authorization = authParam;
+                console.log('[后端] 已设置移动云盘authorization（优先级：前端配置）');
+            } else if (/alipan\.com|aliyundrive\.com/i.test(targetUrl)) {
+                CONFIG.aliyun.authorization = authParam;
+                console.log('[后端] 已设置阿里云盘authorization（优先级：前端配置）');
+            } else if (/pan\.quark\.cn/i.test(targetUrl)) {
+                CONFIG.quark.cookie = authParam;
+                console.log('[后端] 已设置夸克网盘cookie（优先级：前端配置）');
+            } else if (/uc\.cn|fast\.uc\.cn|drive\.uc\.cn/i.test(targetUrl)) {
+                CONFIG.uc.cookie = authParam;
+                console.log('[后端] 已设置UC网盘cookie（优先级：前端配置）');
+            }
+        } else {
+            console.log('[后端] 请求参数中没有auth，使用环境变量或默认值（优先级：环境变量 > 默认值）');
+        }
 
         try {
-            // 路由到对应的解析器
             if (/alipan\.com|aliyundrive\.com/i.test(targetUrl)) {
-                // 阿里云盘解析
                 isAliyun = true;
                 const parser = new AliyunPanParser(CONFIG);
                 result = await parser.parse(targetUrl, pwd);
@@ -3179,7 +3800,6 @@ export default {
                 result = await parser.parse(targetUrl, pwd);
                 
             } else if (/pan\.quark\.cn/i.test(targetUrl)) {
-                // 夸克网盘解析
                 isQuark = true;
                 quarkParser = new QuarkParser(CONFIG);
                 result = await quarkParser.parse(targetUrl, pwd);
@@ -3193,7 +3813,6 @@ export default {
                 }
                 
             } else if (/uc\.cn/i.test(targetUrl) || /fast\.uc\.cn/i.test(targetUrl) || /drive\.uc\.cn/i.test(targetUrl)) {
-                // UC网盘解析
                 isUC = true;
                 ucParser = new UCParser(CONFIG);
                 result = await ucParser.parse(targetUrl, pwd);
@@ -3207,21 +3826,17 @@ export default {
                 }
                 
             } else if (/yun\.139\.com|caiyun\.139\.com/i.test(targetUrl)) {
-                // 移动云盘解析
                 isMcloud = true;
                 const mobileCloudParser = new MobileCloudParser(CONFIG);
                 result = await mobileCloudParser.parse(targetUrl, pwd);
-                
-                // 获取 Authorization
+
                 if (CONFIG.mcloud && CONFIG.mcloud.authorization) {
                     mcloudAuthorization = CONFIG.mcloud.authorization;
                 }
-                
-                // 如果解析失败且提供了linkId参数，尝试直接使用linkId
+
                 if (result.code === 400) {
                     const linkId = url.searchParams.get('linkId');
                     if (linkId) {
-                        // 构造完整的分享URL
                         const fullUrl = `https://yun.139.com/shareweb/#/w/i/${linkId}`;
                         result = await mobileCloudParser.parse(fullUrl, pwd);
                     }
@@ -3248,4 +3863,3 @@ export default {
         return handleResponse(result, type, CONFIG["redirect-url"], CONFIG, isAliyun, isQuark, quarkCookie, isUC, ucCookie, isMcloud, mcloudAuthorization, CONFIG.aliyun ? CONFIG.aliyun.authorization : null);
     }
 };
-
