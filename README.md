@@ -19,9 +19,10 @@
 - 🔗 **直链解析**：支持解析网盘分享链接，获取文件真实下载直链
 - 📡 **JSON 输出**：标准化 API 响应，方便二次开发集成
 - 🔄 **302 重定向**：支持直接重定向到下载地址，实现无缝下载体验
-- 🛡️ **边缘计算**：基于 Cloudflare Workers 全球节点，避免 IP 封禁
+- 🛡️ **边缘计算**：基于 Cloudflare Workers 平台，避免 IP 封禁
 - ⚡ **高速稳定**：利用 CF 全球网络，解析速度快、可用性高
 - 🌍 **全球访问**：自动选择最优节点，无视地域限制
+- 📊 **统计功能**：记录解析次数、成功/失败次数、缓存命中次数
 
 ---
 
@@ -38,7 +39,7 @@
 | 蓝奏云优享版 | ilanzou.com | ✅ 已支持 |
 | 蓝奏云 | lanzou*.com | ✅ 已支持 |
 
-> **注意**：阿里云盘、夸克网盘、UC网盘、移动云盘需要配置认证信息才能正常解析，网盘Cookie的有效期一般为1小时，若无法进行解析，请尝试更新网盘Cookie
+> **注意**：阿里云盘、夸克网盘、UC网盘、移动云盘需要配置认证信息才能正常解析
 ---
 
 ## 💡 快速部署
@@ -72,13 +73,26 @@
 2. 点击 "添加变量"，输入变量名和值
 3. 点击 "保存"
 
-#### 4. 绑定自定义域（推荐）
+#### 4. 配置 KV 存储（推荐）
+
+为了启用缓存机制和统计功能，需要配置 KV 存储：
+
+0. 在 Cloudflare Dashboard 中，进入 "储存与数据库" → "Workers KV"
+1. 进入界面后在右上角“创建实例”，并输入"JxPan"作为命名空间名称
+2. 在 Cloudflare Dashboard 中，进入 "Workers & Pages" → "KV"
+3. 点击 "创建命名空间"，输入名称（如 `JxPan`）
+4. 回到 Worker 页面，点击 "设置" → "KV 命名空间绑定"
+5. 点击 "添加绑定"
+6. 变量名称填写 `JxPan`，选择刚刚创建的 KV 命名空间
+7. 点击 "添加绑定"
+
+#### 5. 绑定自定义域（推荐）
 
 1. 在 "触发器" 选项卡点击 "添加自定义域"
 2. 输入您的域名（如 `pan.yourdomain.com`），点击 "添加自定义域"
 3. 按提示完成 DNS 解析，等待证书生效
 
-#### 5. 访问测试
+#### 6. 访问测试
 
 - 访问 `https://your-domain.com/` 查看使用说明
 - 访问 `https://your-domain.com/?url=分享链接` 进行解析测试
@@ -143,6 +157,34 @@ GET /?url={分享链接}&pwd={密码}&type=down
 - 对于阿里云盘、夸克网盘、UC网盘、移动云盘等需要特殊请求头的网盘
 - 代理下载会携带必要的请求头（如：Cookie、Referer、X-CToken、Authorization 等）
 
+#### 4. 获取统计数据
+
+```
+GET /?action=get_stats
+```
+
+**返回示例：**
+
+```json
+{
+  "code": 200,
+  "msg": "获取统计数据成功",
+  "success": true,
+  "data": {
+    "total": 100,
+    "success": 95,
+    "failed": 5,
+    "cached": 80
+  }
+}
+```
+
+**字段说明：**
+- `total`：解析总数
+- `success`：成功次数
+- `failed`：失败次数
+- `cached`：缓存命中次数
+
 ---
 
 ## ⚙️ 配置说明
@@ -163,11 +205,15 @@ GET /?url={分享链接}&pwd={密码}&type=down
 | `MCLOUD_ENABLED` | true | 是否启用移动云盘解析 |
 | `MCLOUD_AUTHORIZATION` | - | 移动云盘 Authorization Token |
 | `MCLOUD_USER_AGENT` | - | 移动云盘自定义 UA |
-| `CACHE` | false | 是否启用缓存（暂未实现） |
-| `CACHE_EXPIRED` | 2000 | 缓存过期时间（秒） |
 | `AUTO_SWITCH` | true | 自动切换平台 UA |
 | `MODE` | pc | 解析模式 |
 | `REDIRECT_URL` | false | 是否默认使用 302 重定向 |
+
+### KV 存储配置
+
+| 绑定名称 | 说明 | 必需 |
+|----------|------|------|
+| `JxPan` | KV 命名空间绑定，用于存储缓存和统计数据 | 推荐 |
 
 ### 认证信息获取方法
 
@@ -269,12 +315,16 @@ curl "https://your-domain.com/?url=https://lanzoux.com/xxxxxx"
 │  (Edge Runtime) │
 └────────┬────────┘
          │
-    ┌────┴────┐
-    │         │
-┌───▼───┐  ┌──▼────┐
-│ 网盘  │  │ 网盘  │
-│ API   │  │ OSS   │
-└───────┘  └───────┘
+    ┌────┼───────┐
+    │    │       │
+┌───▼───┐│  ┌────▼────┐
+│ 网盘  ││  │ Cloudflare │
+│ API   ││  │    KV     │
+└───────┘│  └──────────┘
+         │
+    ┌────▼────┐
+    │ 网盘 OSS │
+    └─────────┘
 ```
 
 ### 核心模块
@@ -287,6 +337,9 @@ curl "https://your-domain.com/?url=https://lanzoux.com/xxxxxx"
 - **FeijipanParser** - 小飞机网盘解析器
 - **IlanzouParser** - 蓝奏云优享版解析器
 - **LanzouParser** - 蓝奏云解析器
+- **KV Storage** - 使用 Cloudflare KV 存储缓存和统计数据
+- **Cache Mechanism** - 缓存解析结果，提高响应速度
+- **Statistics** - 记录和提供解析统计数据
 
 ---
 
