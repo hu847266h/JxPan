@@ -1,3 +1,5 @@
-name = "jxpan"
+name = "pan"
 main = "_worker.js"
 compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+no_bundle = true
